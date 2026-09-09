@@ -23,7 +23,7 @@ jobs:
         env:
           ARCGIS_CLIENT: ${{ secrets.ARCGIS_CLIENT }}
           ARCGIS_SECRET: ${{ secrets.ARCGIS_SECRET }}
-        run: Rscript Data_prep.R
+        run: Rscript data_prep.R
 
       - name: Commit updated data
         run: |

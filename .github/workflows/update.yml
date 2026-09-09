@@ -1,0 +1,35 @@
+name: Update Survey123 data
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    container: rocker/r-ver:4.4.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libgdal-dev libproj-dev git
+
+      - name: Install R packages
+        run: install.packages(c("arcgislayers", "dplyr", "sf"), repos = "https://r-arcgis.r-universe.dev")
+        shell: Rscript {0}
+
+      - name: Run update script
+        env:
+          ARCGIS_CLIENT: ${{ secrets.ARCGIS_CLIENT }}
+          ARCGIS_SECRET: ${{ secrets.ARCGIS_SECRET }}
+        run: Rscript Data_prep.R
+
+      - name: Commit updated data
+        run: |
+          git config --global --add safe.directory /__w/*/*
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/donnees_pretes.rds
+          git commit -m "Mise à jour automatique" || echo "Rien à committer"
+          git push

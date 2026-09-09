@@ -11,8 +11,11 @@ jobs:
     container: rocker/r-ver:4.4.1
 
     steps:
+
+      # 1. Récupérer le dépôt GitHub
       - uses: actions/checkout@v4
 
+      # 2. Installer les dépendances système nécessaires
       - name: Install system dependencies
         run: |
           apt-get update
@@ -22,29 +25,47 @@ jobs:
             libxml2-dev \
             libgdal-dev \
             libproj-dev \
+            libgeos-dev \
             libudunits2-dev \
             git
 
+      # 3. Installer les packages R
       - name: Install R packages
         run: |
-          install.packages("tidyverse", repos = "https://cloud.r-project.org")
+          install.packages(
+            "tidyverse",
+            repos = "https://cloud.r-project.org"
+          )
+
           install.packages(
             c("arcgislayers", "sf"),
             repos = "https://r-arcgis.r-universe.dev"
           )
         shell: Rscript {0}
 
+      # 4. Exécuter le script R
       - name: Run update script
         env:
           ARCGIS_CLIENT: ${{ secrets.ARCGIS_CLIENT }}
           ARCGIS_SECRET: ${{ secrets.ARCGIS_SECRET }}
-        run: Rscript data_prep.R
+        run: |
+          Rscript data_prep.R
 
+      # 5. Envoyer le nouveau fichier sur GitHub
       - name: Commit updated data
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # Autoriser Git à utiliser le dépôt dans le conteneur
+          git config --global --add safe.directory '*'
+
+          # Configuration de Git
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+
+          # Ajouter le fichier mis à jour
           git add data/donnees_pretes.rds
+
+          # Créer le commit seulement s'il y a des changements
           git commit -m "Mise à jour automatique" || echo "Rien à committer"
+
+          # Envoyer le commit sur GitHub
           git push

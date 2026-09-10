@@ -12,13 +12,17 @@ jobs:
 
     steps:
 
-      # 1. Récupérer le dépôt GitHub
+      # 1. Installer git AVANT le checkout (l'image rocker/r-ver ne l'a pas par défaut,
+      #    et sans git, actions/checkout télécharge les fichiers sans créer de dossier .git)
+      - name: Install git
+        run: apt-get update && apt-get install -y git
+
+      # 2. Récupérer le dépôt GitHub
       - uses: actions/checkout@v4
 
-      # 2. Installer les dépendances système nécessaires
+      # 3. Installer les dépendances système nécessaires
       - name: Install system dependencies
         run: |
-          apt-get update
           apt-get install -y \
             libcurl4-openssl-dev \
             libssl-dev \
@@ -26,8 +30,7 @@ jobs:
             libgdal-dev \
             libproj-dev \
             libgeos-dev \
-            libudunits2-dev \
-            git
+            libudunits2-dev
 
       # 3. Installer les packages R
       - name: Install R packages

@@ -5,6 +5,14 @@ on:
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
+# Empêche plusieurs runs de tourner en même temps : si un nouveau run
+# est déclenché pendant qu'un ancien tourne encore, l'ancien est annulé.
+# Comme chaque run récupère l'état COMPLET des données (pas juste les
+# nouvelles entrées), seul le dernier run compte vraiment.
+concurrency:
+  group: update-survey123-data
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -35,21 +43,35 @@ jobs:
             libgeos-dev \
             libudunits2-dev
 
-      # 4. Installer les packages R
+      # 4. Mettre en cache les packages R installés, pour ne pas les
+      #    réinstaller à chaque run (gain de temps majeur : ~10 min -> ~30 sec
+      #    une fois le cache "chaud")
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/R/site-library
+          key: r-pkgs-${{ runner.os }}-${{ hashFiles('data_prep.R') }}
+          restore-keys: |
+            r-pkgs-${{ runner.os }}-
+
+      # 5. Installer les packages R (ne fait vraiment le travail que si le
+      #    cache ci-dessus est vide ou périmé)
       - name: Install R packages
         run: |
-          install.packages(
-            "tidyverse",
-            repos = "https://cloud.r-project.org"
-          )
-
-          install.packages(
-            c("arcgislayers", "sf"),
-            repos = "https://r-arcgis.r-universe.dev"
-          )
+          options(repos = c(
+            CRAN = "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+          ))
+          # dplyr seul est suffisant si data_prep.R n'utilise pas tout tidyverse
+          # (remplacez par "tidyverse" si vous utilisez d'autres fonctions, ex. stringr, purrr)
+          for (pkg in c("dplyr")) {
+            if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+          }
+          for (pkg in c("arcgislayers", "sf")) {
+            if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg, repos = "https://r-arcgis.r-universe.dev")
+          }
         shell: Rscript {0}
 
-      # 5. Exécuter le script R
+      # 6. Exécuter le script R
       - name: Run update script
         env:
           ARCGIS_CLIENT: ${{ secrets.ARCGIS_CLIENT }}
@@ -57,12 +79,10 @@ jobs:
         run: |
           Rscript data_prep.R
 
-      # 6. Envoyer le nouveau fichier sur GitHub
+      # 7. Envoyer le nouveau fichier sur GitHub
       - name: Commit updated data
         run: |
           # Autoriser Git à utiliser le dépôt dans le conteneur
-          # (on utilise "*" car le chemin réel dans le conteneur, ex. /__w/repo/repo,
-          # diffère de ${{ github.workspace }} qui rapporte le chemin de l'hôte)
           git config --global --add safe.directory "*"
 
           # Configuration de Git (globale)
@@ -78,6 +98,10 @@ jobs:
 
           # Créer le commit seulement s'il y a des changements
           git commit -m "Mise à jour automatique" || echo "Rien à committer"
+
+          # Sécurité supplémentaire : re-synchroniser avant de pousser,
+          # au cas où un autre commit serait arrivé entre-temps malgré 'concurrency'
+          git pull --rebase origin main || echo "Rien à rebaser"
 
           # Envoyer le commit sur GitHub
           git push

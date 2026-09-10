@@ -53,9 +53,10 @@ jobs:
 
       # 5. Envoyer le nouveau fichier sur GitHub
       - name: Commit updated data
+        working-directory: ${{ github.workspace }}
         run: |
           # Autoriser Git à utiliser le dépôt dans le conteneur
-          git config --global --add safe.directory '*'
+          git config --global --add safe.directory "${{ github.workspace }}"
 
           # Configuration de Git
           git config user.name "github-actions"

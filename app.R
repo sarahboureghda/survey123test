@@ -5,40 +5,48 @@ if(length(new.packages)) install.packages(new.packages)
 library(shiny)
 library(DT)
 library(ggplot2)
+library(httr)
 
-# UI ----------------------------------------------------------------
+# ---- UI ----------------------------------------------------------------
 
 ui <- fluidPage(
   titlePanel("Résultats test"),
 
-  # Output tableau
   DTOutput("table_df3"),
-  
+
   br(),
-  
-  # Output graphique
+
   plotOutput("graphique_nombre", height = "400px")
 )
 
-# Server --------------------------------------------------------------
+# ---- SERVER --------------------------------------------------------------
 
 server <- function(input, output, session) {
-  
-  # Lit le fichier à toutes les 10 sec
-  data <- reactiveFileReader(
-    intervalMillis = 10000,
-    session,
-    filePath = "data/donnees_pretes.rds",
-    readFunc = readRDS
-  )
-  
-  # Output du dt
+
+  # Lit les données depuis GitHub (dépôt privé), avec authentification
+  # via token, et se rafraîchit automatiquement toutes les 30 secondes.
+  data <- reactive({
+    invalidateLater(30000, session)
+
+    github_pat <- Sys.getenv("GITHUB_PAT")  # lu depuis les variables d'environnement
+
+    url_rds <- "https://raw.githubusercontent.com/sarahboureghda/survey123test/main/data/donnees_pretes.rds"
+    temp <- tempfile(fileext = ".rds")
+
+    GET(
+      url_rds,
+      add_headers(Authorization = paste("token", github_pat)),
+      write_disk(temp, overwrite = TRUE)
+    )
+
+    readRDS(temp)
+  })
+
   output$table_df3 <- renderDT({
     req(data())
     datatable(data()$df3)
   })
-  
-  # Output graphique
+
   output$graphique_nombre <- renderPlot({
     req(data())
     ggplot(data()$df3, aes(x = Date, y = Nombre, color = Salutations)) +
@@ -54,3 +62,4 @@ server <- function(input, output, session) {
 
 # Run --------------------------------------------------------------
 shinyApp(ui, server)
+

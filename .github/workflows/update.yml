@@ -55,12 +55,27 @@ jobs:
       - name: Commit updated data
         working-directory: ${{ github.workspace }}
         run: |
+          # Diagnostic - à retirer une fois que ça fonctionne
+          echo "Dossier courant :"
+          pwd
+          echo "Contenu du dossier :"
+          ls -la
+          echo "github.workspace :"
+          echo "${{ github.workspace }}"
+
           # Autoriser Git à utiliser le dépôt dans le conteneur
           git config --global --add safe.directory "${{ github.workspace }}"
+          git config --global --add safe.directory "*"
 
-          # Configuration de Git
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          # Configuration de Git (globale, pour éviter tout problème de contexte de dépôt)
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+          # Se placer explicitement dans le dépôt
+          cd "${{ github.workspace }}"
+
+          # Vérifier que .git existe bien ici
+          git status
 
           # Ajouter le fichier mis à jour
           git add data/donnees_pretes.rds
